@@ -31,7 +31,7 @@ fun CalculatorUI() {
 
     var expression by remember { mutableStateOf("") }
     var display by remember { mutableStateOf("0") }
-    fun append(value: String) {
+    fun UpdateDisplay(value: String) {
         expression += value
         display = expression
     }
@@ -97,30 +97,30 @@ fun CalculatorUI() {
         ) {
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CalcButton("7") { append("7") }
-                CalcButton("8") { append("8") }
-                CalcButton("9") { append("9") }
-                CalcButton("/") { append("/") }
+                CalcButton("7") { UpdateDisplay("7") }
+                CalcButton("8") { UpdateDisplay("8") }
+                CalcButton("9") { UpdateDisplay("9") }
+                CalcButton("/") { UpdateDisplay("/") }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CalcButton("4") { append("4") }
-                CalcButton("5") { append("5") }
-                CalcButton("6") { append("6") }
-                CalcButton("-") { append("-") }
+                CalcButton("4") { UpdateDisplay("4") }
+                CalcButton("5") { UpdateDisplay("5") }
+                CalcButton("6") { UpdateDisplay("6") }
+                CalcButton("-") { UpdateDisplay("-") }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CalcButton("1") { append("1") }
-                CalcButton("2") { append("2") }
-                CalcButton("3") { append("3") }
-                CalcButton("+") { append("+") }
+                CalcButton("1") { UpdateDisplay("1") }
+                CalcButton("2") { UpdateDisplay("2") }
+                CalcButton("3") { UpdateDisplay("3") }
+                CalcButton("+") { UpdateDisplay("+") }
 
 
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CalcButton("0") { append("0") }
+                CalcButton("0") { UpdateDisplay("0") }
                 CalcButton("C") {
                     expression = ""
                     display = "0"
@@ -129,7 +129,7 @@ fun CalculatorUI() {
                 CalcButton("=") {
                     display = calculateExpression(display).toString()
                 }
-                CalcButton("*") { append("*") }
+                CalcButton("*") { UpdateDisplay("*") }
                 Spacer(modifier = Modifier.weight(1f))
             }
         }
