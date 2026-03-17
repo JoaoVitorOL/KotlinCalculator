@@ -366,3 +366,473 @@ dependencies {
 
 **Parte 2 — State, Recomposition e Ciclo de Vida**
 
+# Guia Técnico: Jetpack Compose para Android
+> **Parte 2 — State, Recomposition e Fluxo de Dados**
+
+---
+
+## 2.1 O que é State (Estado)?
+
+No Compose, **estado** é qualquer valor que pode mudar ao longo do tempo e que, quando muda, deve causar uma atualização visual na tela.
+
+Exemplos de estado:
+- O texto digitado em um campo de busca
+- Se uma caixa de seleção está marcada ou não
+- O número atual em um contador
+- Se um menu está aberto ou fechado
+
+O Compose só detecta mudanças de estado e atualiza a UI automaticamente **se o estado for armazenado de uma forma que ele consiga observar**. Uma variável Kotlin comum não serve para isso:
+
+```kotlin
+// ERRADO — variável Kotlin comum
+// O Compose não consegue observar mudanças nesta variável.
+// A tela nunca vai atualizar quando o valor mudar.
+@Composable
+fun ContadorErrado() {
+    var contador = 0  // variável comum — invisível para o Compose
+
+    Button(onClick = { contador++ }) {  // incrementa, mas a tela não reage
+        Text("Valor: $contador")
+    }
+}
+```
+
+Para que o Compose detecte a mudança e atualize a UI, o estado precisa ser declarado com `mutableStateOf`:
+
+```kotlin
+// CORRETO — estado observável
+// O Compose monitora este valor. Quando ele muda, a UI é atualizada.
+@Composable
+fun ContadorCorreto() {
+    val contador = mutableStateOf(0)  // estado observável pelo Compose
+
+    Button(onClick = { contador.value++ }) {
+        Text("Valor: ${contador.value}")  // lê o valor com .value
+    }
+}
+```
+
+### O tipo `MutableState<T>`
+
+`mutableStateOf(valor)` retorna um objeto do tipo `MutableState<T>`. Esse objeto tem dois componentes:
+
+| Componente | Função |
+|---|---|
+| `.value` (leitura) | Retorna o valor atual do estado |
+| `.value = novoValor` (escrita) | Atualiza o valor e notifica o Compose para redesenhar |
+
+```kotlin
+val nome: MutableState<String> = mutableStateOf("Android")
+
+// Leitura
+println(nome.value)       // "Android"
+
+// Escrita — isto notifica o Compose automaticamente
+nome.value = "Compose"    // a UI que exibe 'nome' será atualizada
+```
+
+---
+
+## 2.2 `remember` — preservando o estado entre recomposições
+
+Há um problema no exemplo anterior. Toda vez que o Compose roda novamente a função `ContadorCorreto` (o que acontece sempre que qualquer estado muda), a linha `val contador = mutableStateOf(0)` seria executada novamente, **resetando o contador para zero**.
+
+```kotlin
+// O problema sem remember:
+@Composable
+fun ContadorSemRemember() {
+    // A cada recomposição, esta linha executa de novo.
+    // O valor é sempre reiniciado para 0.
+    val contador = mutableStateOf(0)
+
+    Button(onClick = { contador.value++ }) {
+        Text("Valor: ${contador.value}")  // sempre mostra 0
+    }
+}
+```
+
+A solução é o `remember`. Ele instrui o Compose a **executar o bloco apenas na primeira composição** e reutilizar o valor armazenado nas recomposições seguintes:
+
+```kotlin
+@Composable
+fun ContadorComRemember() {
+    // remember { } executa o bloco apenas uma vez (primeira composição).
+    // Nas recomposições seguintes, retorna o valor já armazenado.
+    val contador = remember { mutableStateOf(0) }
+
+    Button(onClick = { contador.value++ }) {
+        Text("Valor: ${contador.value}")  // agora incrementa corretamente
+    }
+}
+```
+
+**Fluxo de execução com `remember`:**
+```
+1ª execução da função:
+    remember { mutableStateOf(0) }
+        → bloco executado → valor 0 armazenado na Composition
+
+Clique no botão → contador.value = 1 → recomposição disparada
+
+2ª execução da função (recomposição):
+    remember { mutableStateOf(0) }
+        → bloco NÃO é executado → valor 1 é retornado do armazenamento
+```
+
+### Sintaxe alternativa com delegação (`by`)
+
+O Kotlin permite uma sintaxe mais limpa usando o operador `by`. Com ele, você acessa o valor diretamente, sem precisar escrever `.value`:
+
+```kotlin
+@Composable
+fun ContadorDelegado() {
+    // Com 'by': o Kotlin lida com .value automaticamente nos bastidores
+    var contador by remember { mutableStateOf(0) }
+
+    Button(onClick = { contador++ }) {   // sem .value
+        Text("Valor: $contador")         // sem .value
+    }
+}
+```
+
+**Comparativo das duas sintaxes:**
+
+| Sintaxe | Declaração | Leitura | Escrita |
+|---|---|---|---|
+| `val x = remember { mutableStateOf(0) }` | `val` | `x.value` | `x.value = novo` |
+| `var x by remember { mutableStateOf(0) }` | `var` | `x` | `x = novo` |
+
+As duas são equivalentes. A sintaxe com `by` é mais comum em código Compose moderno por ser mais limpa.
+
+---
+
+## 2.3 O que é Recomposição?
+
+**Recomposição** é o processo pelo qual o Compose **reexecuta as funções Composable** cujos estados foram alterados, atualizando a UI com os novos valores.
+
+É o mecanismo central que implementa a regra `UI = f(estado)` na prática.
+
+```kotlin
+@Composable
+fun Placar(pontos: Int) {
+    // Toda vez que 'pontos' mudar, esta função é reexecutada
+    // e um novo Text é emitido com o valor atualizado
+    Text(text = "Pontos: $pontos")
+}
+```
+
+### Como o Compose decide o que recomor
+
+O Compose **não reexecuta a árvore inteira**. Ele é inteligente: reexecuta apenas as funções que leram o estado que mudou.
+
+```kotlin
+@Composable
+fun Tela() {
+    var contador by remember { mutableStateOf(0) }
+    var nome     by remember { mutableStateOf("João") }
+
+    Column {
+        // Este composable lê 'contador' — será recomposto quando contador mudar
+        Text("Contagem: $contador")
+
+        // Este composable lê 'nome' — será recomposto quando nome mudar
+        Text("Usuário: $nome")
+
+        // Este botão só altera 'contador'
+        Button(onClick = { contador++ }) {
+            Text("Incrementar")
+        }
+    }
+}
+```
+
+Quando o botão é clicado e `contador` muda:
+- `Text("Contagem: $contador")` → **recomposto** (leu `contador`)
+- `Text("Usuário: $nome")` → **ignorado** (não leu `contador`)
+- O `Button` → **ignorado** (não leu `contador`)
+
+Este comportamento é uma otimização de performance fundamental. Sem ele, qualquer mudança de estado redesenharia a tela inteira.
+
+### Recomposição não é recriação
+
+Um erro conceitual comum: recomposição **não destrói e recria** os elementos. O Compose compara o resultado anterior com o novo e aplica apenas as diferenças — processo chamado de **diffing**.
+
+```
+Antes:  Text("Contagem: 4")
+Depois: Text("Contagem: 5")
+
+O Compose não cria um novo Text. Ele atualiza apenas o conteúdo
+textual do Text já existente na árvore de UI.
+```
+
+---
+
+## 2.4 `rememberSaveable` — sobrevivendo a mudanças de configuração
+
+O `remember` armazena o estado **dentro da Composition**. Isso significa que ele existe enquanto o composable que o declarou estiver na tela. Quando o sistema destrói e recria a Activity — o que acontece, por exemplo, ao **rotacionar a tela** — o `remember` perde tudo.
+
+```kotlin
+@Composable
+fun FormularioFragil() {
+    // Se o usuário rotacionar a tela, este texto some.
+    // remember não sobrevive à recriação da Activity.
+    var texto by remember { mutableStateOf("") }
+
+    TextField(
+        value = texto,
+        onValueChange = { texto = it },
+        label = { Text("Digite algo") }
+    )
+}
+```
+
+Para preservar o estado durante rotação de tela e outros eventos de recriação do sistema, use `rememberSaveable`:
+
+```kotlin
+@Composable
+fun FormularioRobusto() {
+    // rememberSaveable salva o valor em um Bundle do Android.
+    // O Bundle sobrevive à recriação da Activity.
+    var texto by rememberSaveable { mutableStateOf("") }
+
+    TextField(
+        value = texto,
+        onValueChange = { texto = it },
+        label = { Text("Digite algo") }
+    )
+}
+```
+
+### Tabela comparativa: `remember` vs `rememberSaveable`
+
+| Situação | `remember` | `rememberSaveable` |
+|---|---|---|
+| Recomposição normal | ✅ Preserva | ✅ Preserva |
+| Rotação de tela | ❌ Perde | ✅ Preserva |
+| Troca de idioma do sistema | ❌ Perde | ✅ Preserva |
+| Usuário fecha o app (swipe) | ❌ Perde | ❌ Perde |
+| Tipos suportados diretamente | Qualquer objeto | Apenas tipos do `Bundle` (String, Int, Boolean, etc.) |
+
+> **Quando usar qual:**  
+> - `remember` → estado temporário de UI que não precisa sobreviver a rotações (ex: se um dropdown está aberto)  
+> - `rememberSaveable` → estado que o usuário preencheu e espera encontrar após rotacionar a tela (ex: texto digitado, item selecionado)
+
+---
+
+## 2.5 Fluxo Unidirecional de Dados (UDF)
+
+**Unidirectional Data Flow (UDF)** é o padrão arquitetural que o Compose adota para organizar como o estado e os eventos circulam entre os composables. <br>
+O problema que o UDF resolve precisa ser entendido antes do padrão em si. <br>
+O problema: dois composables precisam do mesmo dado <br>
+Imagine dois composables separados — um campo de texto e um texto que exibe o que foi digitado:  <br>
+```text
+┌─────────────────────────────┐
+│  [ campo de texto           ]│  ← o usuário digita aqui
+│                             │
+│  Você digitou: ___          │  ← este texto precisa refletir o que foi digitado
+└─────────────────────────────┘
+````
+A pergunta é: quem é dono do estado textoBusca? <br>
+* Se o estado ficar dentro do campo de texto, o texto exibido abaixo não consegue acessá-lo. <br>
+* Se o estado ficar dentro do texto exibido, o campo de texto não consegue atualizá-lo. <br> 
+* A única solução é que o estado fique no pai, que é quem contém os dois. <br>
+Isso é state hoisting: elevar o estado para o ancestral comum mais próximo que precisa dele. <br>
+```kotlin
+// ─────────────────────────────────────────────
+// COMPOSABLE FILHO — CampoBusca
+// ─────────────────────────────────────────────
+// Este composable NÃO sabe o que é "textoBusca".
+// Ele recebe um texto pronto para exibir,
+// e uma função para avisar "o usuário digitou algo novo".
+// Ele não decide nada — apenas exibe e reporta.
+
+@Composable
+fun CampoBusca(
+    texto: String,                    // recebe o valor atual para exibir
+    onTextChange: (String) -> Unit    // função para avisar o pai quando o valor muda
+) {
+    TextField(
+        value = texto,                // exibe o que o pai mandou
+        onValueChange = onTextChange  // quando o usuário digita, avisa o pai
+    )
+}
+````
+````kotlin
+// ─────────────────────────────────────────────
+// COMPOSABLE PAI — TelaBusca
+// ─────────────────────────────────────────────
+// Este composable É o dono do estado.
+// Ele decide o valor inicial, armazena as mudanças
+// e distribui o valor para quem precisar.
+
+@Composable
+fun TelaBusca() {
+    // O estado vive aqui — no pai
+    var textoBusca by remember { mutableStateOf("") }
+
+    Column {
+        CampoBusca(
+            texto = textoBusca,                 // envia o valor atual para o filho
+            onTextChange = { textoBusca = it }  // quando o filho avisar, atualiza o estado
+        )
+
+        // O pai pode usar o mesmo estado em qualquer outro composable
+        Text("Buscando por: $textoBusca")
+    }
+}
+```
+
+---
+
+#### O ciclo completo, passo a passo
+```
+1. App abre
+   → textoBusca = ""
+   → CampoBusca recebe texto = ""
+   → Text exibe "Buscando por: "
+
+2. Usuário digita "A"
+   → TextField detecta a digitação
+   → chama onTextChange("A")
+   → onTextChange é a função { textoBusca = it } definida no pai
+   → textoBusca passa a ser "A"
+
+3. textoBusca mudou → Compose dispara recomposição
+   → CampoBusca recebe texto = "A" → exibe "A" no campo
+   → Text recebe "A" → exibe "Buscando por: A"
+
+4. Usuário digita "An"
+   → repete o ciclo acima com "An"
+````
+
+````kotlin
+// Se o estado ficasse dentro do CampoBusca:
+@Composable
+fun CampoBusca() {
+    var texto by remember { mutableStateOf("") }
+
+    TextField(
+        value = texto,
+        onValueChange = { texto = it }
+    )
+    // 'texto' está preso aqui dentro.
+    // O Text("Buscando por: $texto") em TelaBusca
+    // não tem como acessar este valor.
+}
+```
+
+O `Text` fora do `CampoBusca` simplesmente não enxerga a variável `texto`. No Kotlin, variáveis locais de uma função não são acessíveis de fora dela.
+
+---
+
+#### Resumo do padrão em uma frase
+
+> O filho **nunca guarda estado**. Ele recebe o valor atual do pai e devolve eventos ao pai. O pai guarda o estado e decide o que fazer com os eventos.
+```
+PAI  ──── estado desce como parâmetro ────▶  FILHO
+PAI  ◀─── evento sobe como callback ──────  FILHO
+````
+
+
+A regra é:
+```
+Estado desce   → do pai para os filhos (como parâmetro)
+Eventos sobem  → dos filhos para o pai (como callbacks)
+```
+
+Sem este padrão, os composables tendem a controlar seu próprio estado internamente, o que os torna difíceis de testar e reutilizar:
+
+```kotlin
+// PROBLEMA — composable com estado interno (stateful)
+// Ninguém de fora consegue saber qual é o valor atual de 'texto',
+// nem controlá-lo. Impossível de testar em isolamento.
+@Composable
+fun CampoBusca() {
+    var texto by remember { mutableStateOf("") }
+
+    TextField(
+        value = texto,
+        onValueChange = { texto = it }
+    )
+}
+```
+
+Com UDF, o estado é movido para o pai (**state hoisting**) e o filho apenas recebe o valor e reporta eventos:
+
+```kotlin
+// SOLUÇÃO — state hoisting: estado elevado para o pai
+
+// Filho: stateless (sem estado próprio)
+// Recebe o valor atual e uma função para reportar mudanças.
+// Pode ser reutilizado em qualquer contexto.
+@Composable
+fun CampoBusca(
+    texto: String,                   // estado desce como parâmetro
+    onTextChange: (String) -> Unit   // evento sobe como callback
+) {
+    TextField(
+        value = texto,
+        onValueChange = onTextChange  // repassa o evento para o pai
+    )
+}
+
+// Pai: stateful (dono do estado)
+// Controla o estado e passa para os filhos.
+@Composable
+fun TelaBusca() {
+    var textoBusca by remember { mutableStateOf("") }
+
+    Column {
+        CampoBusca(
+            texto = textoBusca,                // estado desce
+            onTextChange = { textoBusca = it } // evento sobe
+        )
+
+        // O pai tem acesso ao estado e pode usá-lo em outros composables
+        Text("Buscando por: $textoBusca")
+    }
+}
+```
+
+**Diagrama do fluxo:**
+```
+TelaBusca (dono do estado)
+    │
+    │  texto = textoBusca     ← estado desce
+    ▼
+CampoBusca
+    │
+    │  onTextChange(novoValor) ← evento sobe
+    ▲
+TelaBusca atualiza textoBusca → recomposição
+```
+
+### Por que este padrão importa?
+
+| Benefício | Explicação |
+|---|---|
+| **Fonte única de verdade** | O estado existe em um só lugar — não há risco de dois composables terem versões diferentes do mesmo dado |
+| **Testabilidade** | `CampoBusca` pode ser testado passando qualquer valor como parâmetro, sem depender de estado interno |
+| **Reutilização** | O mesmo composable stateless pode ser usado em diferentes telas com diferentes estados |
+| **Previsibilidade** | Dado que você sabe o estado atual, você sabe exatamente como a tela vai parecer |
+
+---
+
+## 2.6 Resumo da Parte 2
+
+| Conceito | Definição resumida |
+|---|---|
+| Estado (`State`) | Valor que muda ao longo do tempo e deve atualizar a UI quando muda |
+| `mutableStateOf` | Cria um estado observável — o Compose detecta mudanças nele |
+| `remember` | Armazena um valor na Composition; sobrevive a recomposições, mas não a recriações da Activity |
+| `rememberSaveable` | Como `remember`, mas persiste o valor em um Bundle; sobrevive a rotações de tela |
+| Recomposição | Reexecução das funções Composable que leram um estado que mudou |
+| UDF (Unidirectional Data Flow) | Padrão onde estado desce como parâmetro e eventos sobem como callbacks |
+| State Hoisting | Técnica de mover o estado de um composable filho para o pai, tornando o filho stateless |
+
+---
+
+## Próxima Parte
+
+**Parte 3 — Layouts: Column, Row, Box e Modifier**
+
