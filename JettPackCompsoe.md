@@ -836,3 +836,472 @@ TelaBusca atualiza textoBusca → recomposição
 
 **Parte 3 — Layouts: Column, Row, Box e Modifier**
 
+# Guia Técnico: Jetpack Compose para Android
+> **Parte 3 — Layouts: Column, Row, Box e Modifier**
+
+---
+
+## 3.1 O que é um Layout no Compose?
+
+Um layout é um **composable contêiner**: ele não exibe conteúdo visual próprio, mas define **como os composables filhos serão posicionados na tela**.
+
+No sistema antigo (XML), existiam: `LinearLayout`, `RelativeLayout`, `FrameLayout`, `ConstraintLayout`. No Compose, a grande maioria dos casos é coberta por três layouts fundamentais:
+
+| Layout | O que faz |
+|---|---|
+| `Column` | Empilha filhos **verticalmente** (de cima para baixo) |
+| `Row` | Empilha filhos **horizontalmente** (da esquerda para a direita) |
+| `Box` | Empilha filhos **uns sobre os outros** (sobreposição) |
+
+---
+
+## 3.2 Column
+
+`Column` posiciona cada filho abaixo do anterior, em sequência vertical.
+
+```kotlin
+@Composable
+fun ExemploColumn() {
+    Column {
+        Text("Primeiro")   // fica em cima
+        Text("Segundo")    // fica abaixo do primeiro
+        Text("Terceiro")   // fica abaixo do segundo
+    }
+}
+```
+
+```
+┌──────────────┐
+│  Primeiro    │
+│  Segundo     │
+│  Terceiro    │
+└──────────────┘
+```
+
+### Parâmetros de alinhamento e arranjo
+
+`Column` possui dois parâmetros para controlar o posicionamento dos filhos:
+
+| Parâmetro | Eixo que controla | O que faz |
+|---|---|---|
+| `verticalArrangement` | Vertical (↕) | Distribui o espaço entre os filhos no eixo vertical |
+| `horizontalAlignment` | Horizontal (↔) | Alinha todos os filhos no eixo horizontal |
+
+```kotlin
+@Composable
+fun ColumnComAlinhamento() {
+    Column(
+        // Distribui os filhos com espaço igual entre eles
+        verticalArrangement = Arrangement.SpaceBetween,
+
+        // Centraliza todos os filhos horizontalmente
+        horizontalAlignment = Alignment.CenterHorizontally,
+
+        // fillMaxSize: ocupa todo o espaço disponível da tela
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Text("Topo")
+        Text("Meio")
+        Text("Base")
+    }
+}
+```
+
+```
+┌──────────────────┐
+│     Topo         │  ← espaço entre os filhos distribuído por SpaceBetween
+│                  │
+│     Meio         │
+│                  │
+│     Base         │
+└──────────────────┘
+```
+
+### Valores de `verticalArrangement` para Column
+
+| Valor | Comportamento |
+|---|---|
+| `Arrangement.Top` | Filhos agrupados no topo (padrão) |
+| `Arrangement.Bottom` | Filhos agrupados na base |
+| `Arrangement.Center` | Filhos agrupados no centro vertical |
+| `Arrangement.SpaceBetween` | Espaço igual **entre** os filhos; sem espaço nas bordas |
+| `Arrangement.SpaceAround` | Espaço igual entre os filhos; metade do espaço nas bordas |
+| `Arrangement.SpaceEvenly` | Espaço igual entre os filhos **e** nas bordas |
+| `Arrangement.spacedBy(8.dp)` | Espaço fixo de `8.dp` entre cada filho |
+
+### Valores de `horizontalAlignment` para Column
+
+| Valor | Comportamento |
+|---|---|
+| `Alignment.Start` | Alinha à esquerda (padrão) |
+| `Alignment.CenterHorizontally` | Centraliza horizontalmente |
+| `Alignment.End` | Alinha à direita |
+
+---
+
+## 3.3 Row
+
+`Row` posiciona cada filho à direita do anterior, em sequência horizontal.
+
+```kotlin
+@Composable
+fun ExemploRow() {
+    Row {
+        Text("A")   // fica à esquerda
+        Text("B")   // fica à direita de A
+        Text("C")   // fica à direita de B
+    }
+}
+```
+
+```
+┌─────────────────────┐
+│  A   B   C          │
+└─────────────────────┘
+```
+
+### Parâmetros de alinhamento e arranjo
+
+`Row` possui os parâmetros inversos aos do `Column`:
+
+| Parâmetro | Eixo que controla | O que faz |
+|---|---|---|
+| `horizontalArrangement` | Horizontal (↔) | Distribui o espaço entre os filhos no eixo horizontal |
+| `verticalAlignment` | Vertical (↕) | Alinha todos os filhos no eixo vertical |
+
+```kotlin
+@Composable
+fun RowComAlinhamento() {
+    Row(
+        // Distribui os filhos com espaço igual entre eles horizontalmente
+        horizontalArrangement = Arrangement.SpaceBetween,
+
+        // Centraliza todos os filhos verticalmente
+        verticalAlignment = Alignment.CenterVertically,
+
+        // fillMaxWidth: ocupa toda a largura disponível
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Esquerda")
+        Text("Centro")
+        Text("Direita")
+    }
+}
+```
+
+```
+┌──────────────────────────────┐
+│  Esquerda  Centro   Direita  │
+└──────────────────────────────┘
+```
+
+> **Regra para memorizar a diferença entre Column e Row:**
+> - `Column` → arranjo no eixo **vertical** (onde os filhos se empilham)
+> - `Row` → arranjo no eixo **horizontal** (onde os filhos se empilham)
+> O parâmetro de `Arrangement` sempre controla o eixo em que os elementos se acumulam.
+
+---
+
+## 3.4 Box
+
+`Box` empilha os filhos **uns sobre os outros**, como camadas. O último filho declarado fica na camada mais acima visualmente.
+
+```kotlin
+@Composable
+fun ExemploBox() {
+    Box {
+        // Primeiro filho: camada de baixo (fundo)
+        Image(
+            painter = painterResource(R.drawable.fundo),
+            contentDescription = "Fundo"
+        )
+
+        // Segundo filho: camada de cima (sobrepõe a imagem)
+        Text(
+            text = "Texto sobre a imagem",
+            color = Color.White
+        )
+    }
+}
+```
+
+```
+┌──────────────────┐
+│ ░░░░░░░░░░░░░░░░ │  ← Image (camada de baixo)
+│ ░ Texto sobre ░░ │  ← Text (camada de cima, sobrepõe)
+│ ░ a imagem   ░░░ │
+│ ░░░░░░░░░░░░░░░░ │
+└──────────────────┘
+```
+
+### Alinhamento de filhos no Box
+
+`Box` usa o parâmetro `contentAlignment` para definir onde os filhos serão posicionados dentro dele:
+
+```kotlin
+@Composable
+fun BoxComAlinhamento() {
+    Box(
+        contentAlignment = Alignment.BottomEnd, // canto inferior direito
+        modifier = Modifier.size(200.dp)
+    ) {
+        Image(painter = painterResource(R.drawable.foto), contentDescription = null)
+
+        // Este ícone será posicionado no canto inferior direito da Box
+        Icon(
+            imageVector = Icons.Default.Edit,
+            contentDescription = "Editar"
+        )
+    }
+}
+```
+
+Os 9 valores de `Alignment` disponíveis para `Box`:
+
+```
+TopStart      TopCenter      TopEnd
+CenterStart   Center         CenterEnd
+BottomStart   BottomCenter   BottomEnd
+```
+
+### Alinhamento individual com `align`
+
+Cada filho de um `Box` pode ter seu próprio alinhamento usando o `Modifier.align()`:
+
+```kotlin
+@Composable
+fun BoxAlinhamentoIndividual() {
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        Text(
+            "Topo esquerda",
+            modifier = Modifier.align(Alignment.TopStart)
+        )
+
+        Text(
+            "Centro",
+            modifier = Modifier.align(Alignment.Center)
+        )
+
+        Text(
+            "Base direita",
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
+    }
+}
+```
+
+---
+
+## 3.5 Modifier
+
+`Modifier` é o sistema do Compose para **decorar, dimensionar, posicionar e configurar o comportamento** de qualquer composable.
+
+Em vez de o composable ter dezenas de parâmetros para cada propriedade visual possível, o Compose centraliza tudo isso no `Modifier`. Ele é passado como parâmetro para praticamente todos os composables nativos.
+
+```kotlin
+@Composable
+fun ExemploModifier() {
+    Text(
+        text = "Olá",
+        modifier = Modifier
+            .padding(16.dp)        // espaçamento interno
+            .background(Color.Blue) // cor de fundo
+            .fillMaxWidth()        // ocupa toda a largura disponível
+    )
+}
+```
+
+### Como o encadeamento de Modifier funciona
+
+O `Modifier` é uma **lista ordenada de instruções**. Cada chamada adiciona uma instrução ao final da lista. A **ordem importa**: cada instrução afeta o que vem depois dela.
+
+```kotlin
+// Exemplo A: padding ANTES do background
+// O espaçamento de 16dp fica FORA do fundo azul
+Text(
+    text = "Exemplo A",
+    modifier = Modifier
+        .padding(16.dp)          // 1. aplica espaço fora da caixa
+        .background(Color.Blue)  // 2. pinta o fundo — o padding já foi subtraído
+)
+
+// Exemplo B: background ANTES do padding
+// O fundo azul cobre também a área de espaçamento
+Text(
+    text = "Exemplo B",
+    modifier = Modifier
+        .background(Color.Blue)  // 1. pinta o fundo completo
+        .padding(16.dp)          // 2. o conteúdo é recuado 16dp para dentro do fundo
+)
+```
+
+```
+Exemplo A:                   Exemplo B:
+  [ ][ ][ ][ ][ ]              [█][█][█][█][█]
+  [ ]  Exemplo A  [ ]          [█]  Exemplo B [█]
+  [ ][ ][ ][ ][ ]              [█][█][█][█][█]
+
+  fundo não cobre o padding    fundo cobre o padding
+```
+
+### Modificadores mais utilizados
+
+```kotlin
+Modifier
+    // ── DIMENSIONAMENTO ──────────────────────────────────
+    .fillMaxWidth()          // largura = largura do pai (100%)
+    .fillMaxHeight()         // altura = altura do pai (100%)
+    .fillMaxSize()           // largura e altura = pai (100%)
+    .width(120.dp)           // largura fixa de 120dp
+    .height(60.dp)           // altura fixa de 60dp
+    .size(80.dp)             // largura e altura iguais: 80dp x 80dp
+    .wrapContentSize()       // dimensão definida pelo conteúdo interno
+
+    // ── ESPAÇAMENTO ──────────────────────────────────────
+    .padding(16.dp)          // padding igual em todos os lados
+    .padding(horizontal = 16.dp, vertical = 8.dp)  // padding por eixo
+    .padding(top = 8.dp, bottom = 4.dp)            // padding por lado
+
+    // ── APARÊNCIA ────────────────────────────────────────
+    .background(Color.Gray)                        // cor de fundo sólida
+    .background(Color.Blue, shape = RoundedCornerShape(8.dp)) // fundo com borda arredondada
+    .clip(RoundedCornerShape(12.dp))               // recorta o conteúdo em formato arredondado
+    .border(1.dp, Color.Black, RoundedCornerShape(8.dp)) // borda
+
+    // ── INTERAÇÃO ────────────────────────────────────────
+    .clickable { /* ação ao clicar */ }            // torna o composable clicável
+    .alpha(0.5f)                                   // opacidade (0f = invisível, 1f = opaco)
+
+    // ── POSICIONAMENTO ───────────────────────────────────
+    .align(Alignment.CenterHorizontally)           // alinhamento dentro do pai
+    .weight(1f)                                    // divide espaço proporcional (só em Row/Column)
+```
+
+### `weight` — distribuição proporcional de espaço
+
+O `Modifier.weight()` é exclusivo de filhos de `Row` e `Column`. Ele distribui o espaço disponível **proporcionalmente** entre os filhos com peso definido:
+
+```kotlin
+@Composable
+fun BarraDeNavegacao() {
+    Row(modifier = Modifier.fillMaxWidth()) {
+
+        // Este botão ocupa 2/3 do espaço total da Row
+        Button(
+            onClick = {},
+            modifier = Modifier.weight(2f)  // peso 2
+        ) {
+            Text("Principal")
+        }
+
+        // Este botão ocupa 1/3 do espaço total da Row
+        Button(
+            onClick = {},
+            modifier = Modifier.weight(1f)  // peso 1
+        ) {
+            Text("Secundário")
+        }
+    }
+}
+```
+
+```
+┌──────────────────────────────────────┐
+│  Principal (2/3)  │  Secundário(1/3) │
+└──────────────────────────────────────┘
+```
+
+---
+
+## 3.6 Composição de layouts
+
+Na prática, telas reais são construídas **combinando** `Column`, `Row`, `Box` e `Modifier`. Não existe limite de aninhamento — o Compose processa layouts aninhados eficientemente.
+
+Exemplo: card de perfil de usuário
+
+```kotlin
+@Composable
+fun CardPerfil(nome: String, cargo: String) {
+    // Row externa: foto à esquerda, textos à direita
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .background(Color.White, shape = RoundedCornerShape(12.dp))
+            .padding(16.dp)  // padding interno após o background
+    ) {
+        // Box: foto com ícone de status sobreposto
+        Box(modifier = Modifier.size(56.dp)) {
+            Image(
+                painter = painterResource(R.drawable.avatar),
+                contentDescription = "Foto de perfil",
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)  // recorta a imagem em círculo
+            )
+            // Indicador de status: ponto verde no canto inferior direito
+            Box(
+                modifier = Modifier
+                    .size(14.dp)
+                    .background(Color.Green, CircleShape)
+                    .align(Alignment.BottomEnd)
+            )
+        }
+
+        // Espaço fixo entre a foto e os textos
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // Column interna: nome acima, cargo abaixo
+        Column {
+            Text(text = nome, style = MaterialTheme.typography.titleMedium)
+            Text(text = cargo, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+```
+
+**Estrutura da árvore de UI deste componente:**
+```
+Row
+├── Box (foto + status)
+│   ├── Image (avatar circular)
+│   └── Box (ponto verde — sobreposto via Box)
+├── Spacer (espaço fixo)
+└── Column (textos)
+    ├── Text (nome)
+    └── Text (cargo)
+```
+
+---
+
+## 3.7 Resumo da Parte 3
+
+| Conceito | Definição resumida |
+|---|---|
+| `Column` | Empilha filhos verticalmente; `verticalArrangement` controla distribuição; `horizontalAlignment` controla alinhamento |
+| `Row` | Empilha filhos horizontalmente; `horizontalArrangement` controla distribuição; `verticalAlignment` controla alinhamento |
+| `Box` | Sobrepõe filhos em camadas; o último filho declarado fica acima visualmente |
+| `Modifier` | Lista ordenada de instruções de aparência, dimensionamento e comportamento |
+| Ordem do `Modifier` | A sequência de encadeamento importa — cada instrução afeta o que vem depois |
+| `weight` | Distribui espaço proporcional entre filhos de `Row` ou `Column` |
+| `Spacer` | Composable vazio usado para inserir espaço fixo entre elementos |
+
+---
+
+## Próxima Parte
+
+**Parte 4 — Componentes Material Design 3**
+
+Cobre os componentes nativos do Compose prontos para uso:
+- `Button`, `OutlinedButton`, `TextButton`, `IconButton`
+- `TextField` e `OutlinedTextField`
+- `Card`, `Surface`
+- `TopAppBar`, `BottomNavigationBar`
+- `AlertDialog`
+- Como aplicar e customizar o tema (`MaterialTheme`, cores, tipografia)
+
+---
+*Aguardando aprovação para prosseguir para a Parte 4.*
+
