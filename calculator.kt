@@ -130,7 +130,7 @@ fun CalculatorUI() {
                     display = calculateExpression(display).toString()
                 }
                 CalcButton("*") { UpdateDisplay("*") }
-                Spacer(modifier = Modifier.weight(1f))
+                //Spacer(modifier = Modifier.weight(1f))
             }
         }
     }
