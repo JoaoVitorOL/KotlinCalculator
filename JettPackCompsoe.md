@@ -1294,14 +1294,608 @@ Row
 
 **Parte 4 — Componentes Material Design 3**
 
-Cobre os componentes nativos do Compose prontos para uso:
-- `Button`, `OutlinedButton`, `TextButton`, `IconButton`
-- `TextField` e `OutlinedTextField`
-- `Card`, `Surface`
-- `TopAppBar`, `BottomNavigationBar`
-- `AlertDialog`
-- Como aplicar e customizar o tema (`MaterialTheme`, cores, tipografia)
+# Guia Técnico: Jetpack Compose para Android
+> **Parte 4 — Componentes Material Design 3**
 
 ---
-*Aguardando aprovação para prosseguir para a Parte 4.*
+
+## 4.1 O que é Material Design 3?
+
+Material Design 3 (M3) é o **sistema de design oficial do Google** para aplicativos Android. Ele define regras visuais — cores, formas, tipografia, espaçamentos — e fornece componentes de UI prontos que já seguem essas regras.
+
+O Compose oferece implementação nativa de todos os componentes M3. Ao usá-los, seu app automaticamente:
+- Segue as diretrizes visuais do Android moderno
+- Suporta tema claro e escuro
+- Suporta cores dinâmicas (extraídas do papel de parede do usuário, no Android 12+)
+
+<function_calls>
+<invoke name="bash_tool">
+<parameter name="command">cat >> /mnt/user-data/outputs/jetpack_compose_guia_parte4.md << 'ENDOFFILE'
+
+O M3 é composto por três subsistemas de tema:
+
+| Subsistema | O que define |
+|---|---|
+| **ColorScheme** | Paleta de cores do app (primária, secundária, fundo, erro, etc.) |
+| **Typography** | Estilos de texto (tamanho, peso, espaçamento para títulos, corpo, labels) |
+| **Shapes** | Formas dos componentes (raio de arredondamento de botões, cards, etc.) |
+
+---
+
+## 4.2 MaterialTheme — o contêiner de tema
+
+`MaterialTheme` é o composable que **fornece o tema para toda a árvore de UI abaixo dele**. Todo componente M3 consulta o tema atual para saber quais cores, fontes e formas usar.
+
+```kotlin
+// MainActivity.kt
+setContent {
+    // MaterialTheme deve envolver toda a UI do app.
+    // Sem ele, os componentes M3 usam um tema roxo padrão (baseline).
+    MeuAppTheme {
+        // toda a UI do app fica aqui dentro
+        TelaInicial()
+    }
+}
+```
+
+### Acessando valores do tema em qualquer composable
+
+Dentro de qualquer composable, você pode acessar os valores do tema atual via `MaterialTheme`:
+
+```kotlin
+@Composable
+fun TituloDestaque(texto: String) {
+    Text(
+        text = texto,
+        // acessa a cor primária definida no tema
+        color = MaterialTheme.colorScheme.primary,
+
+        // acessa o estilo de texto "headlineMedium" definido no tema
+        style = MaterialTheme.typography.headlineMedium
+    )
+}
+```
+
+---
+
+## 4.3 Scaffold — estrutura base de uma tela
+
+Antes de apresentar os componentes individuais, é necessário entender o `Scaffold`. Ele é o **esqueleto estrutural de uma tela completa** no M3. Ele reserva os espaços corretos para os componentes de navegação e garante que o conteúdo não fique sobreposto à barra de status ou de navegação do sistema.
+
+```kotlin
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TelaExemplo() {
+    Scaffold(
+        // Barra superior da tela
+        topBar = {
+            TopAppBar(
+                title = { Text("Meu App") }
+            )
+        },
+
+        // Botão de ação flutuante (canto inferior direito)
+        floatingActionButton = {
+            FloatingActionButton(onClick = { /* ação */ }) {
+                Icon(Icons.Default.Add, contentDescription = "Adicionar")
+            }
+        },
+
+        // Barra de navegação inferior
+        bottomBar = {
+            NavigationBar { /* itens de navegação */ }
+        }
+
+    ) { paddingValues ->
+        // 'paddingValues' contém o espaçamento calculado pelo Scaffold
+        // para que o conteúdo não fique atrás da topBar ou bottomBar.
+        // É OBRIGATÓRIO aplicá-lo ao conteúdo principal.
+        Column(modifier = Modifier.padding(paddingValues)) {
+            Text("Conteúdo da tela")
+        }
+    }
+}
+```
+
+**Estrutura visual do Scaffold:**
+```
+┌─────────────────────────┐
+│       TopAppBar         │  ← topBar
+├─────────────────────────┤
+│                         │
+│    Conteúdo principal   │  ← content (com paddingValues)
+│                    [+]  │  ← floatingActionButton
+│                         │
+├─────────────────────────┤
+│     NavigationBar       │  ← bottomBar
+└─────────────────────────┘
+```
+
+---
+
+## 4.4 Botões
+
+O M3 define **cinco variantes de botão**, cada uma com nível de ênfase visual diferente. A escolha correta comunica a importância da ação ao usuário.
+
+| Variante | Ênfase | Uso recomendado |
+|---|---|---|
+| `Button` | Mais alta — fundo sólido na cor primária | Ação principal da tela |
+| `FilledTonalButton` | Alta — fundo em tom secundário | Ação secundária importante |
+| `ElevatedButton` | Média — fundo elevado com sombra | Ação em superfície colorida |
+| `OutlinedButton` | Média — apenas borda | Ação alternativa |
+| `TextButton` | Mais baixa — apenas texto | Ação de baixo impacto (cancelar, ver mais) |
+
+```kotlin
+@Composable
+fun ExemploBotoes() {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(16.dp)
+    ) {
+        // Ação principal — use apenas um por tela
+        Button(onClick = { /* salvar */ }) {
+            Text("Salvar")
+        }
+
+        // Ação secundária com destaque visual
+        FilledTonalButton(onClick = { /* exportar */ }) {
+            Text("Exportar")
+        }
+
+        // Ação em superfície com cor de fundo
+        ElevatedButton(onClick = { /* compartilhar */ }) {
+            Text("Compartilhar")
+        }
+
+        // Ação alternativa
+        OutlinedButton(onClick = { /* editar */ }) {
+            Text("Editar")
+        }
+
+        // Ação de baixo impacto
+        TextButton(onClick = { /* cancelar */ }) {
+            Text("Cancelar")
+        }
+    }
+}
+```
+
+### Botão com ícone
+
+```kotlin
+Button(onClick = { /* enviar */ }) {
+    // Icon dentro do Button precisa de tamanho específico
+    Icon(
+        imageVector = Icons.Default.Send,
+        contentDescription = null,              // null pois o texto já descreve a ação
+        modifier = Modifier.size(ButtonDefaults.IconSize)
+    )
+    // Spacer padrão entre ícone e texto em botões
+    Spacer(modifier = Modifier.size(ButtonDefaults.IconSpacing))
+    Text("Enviar")
+}
+```
+
+### Parâmetros comuns a todos os botões
+
+```kotlin
+Button(
+    onClick = { /* ação */ },
+    enabled = true,           // false desabilita o botão visualmente e funcionalmente
+    shape = RoundedCornerShape(4.dp),  // sobrescreve o shape do tema
+    colors = ButtonDefaults.buttonColors(
+        containerColor = Color.Red,    // cor de fundo do botão
+        contentColor = Color.White     // cor do texto e ícone dentro do botão
+    )
+) {
+    Text("Ação")
+}
+```
+
+---
+
+## 4.5 TextField e OutlinedTextField
+
+`TextField` e `OutlinedTextField` são os componentes de entrada de texto do M3. A diferença é apenas visual: o `TextField` tem fundo preenchido; o `OutlinedTextField` tem apenas borda.
+
+```kotlin
+@Composable
+fun ExemploCampoTexto() {
+    // O estado do texto precisa ser gerenciado externamente (state hoisting)
+    var email by remember { mutableStateOf("") }
+
+    // TextField — fundo preenchido
+    TextField(
+        value = email,                           // valor atual exibido no campo
+        onValueChange = { email = it },          // atualiza o estado a cada digitação
+        label = { Text("E-mail") },              // texto flutuante que sobe ao focar
+        placeholder = { Text("usuario@email.com") }, // texto de dica (some ao digitar)
+        singleLine = true,                       // impede quebra de linha
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Email    // abre teclado com @
+        )
+    )
+}
+```
+
+```kotlin
+@Composable
+fun ExemploOutlinedTextField() {
+    var senha by remember { mutableStateOf("") }
+    var senhaVisivel by remember { mutableStateOf(false) }
+
+    // OutlinedTextField — apenas borda, sem fundo preenchido
+    OutlinedTextField(
+        value = senha,
+        onValueChange = { senha = it },
+        label = { Text("Senha") },
+        singleLine = true,
+
+        // visualTransformation oculta o texto com bullets
+        visualTransformation = if (senhaVisivel)
+            VisualTransformation.None
+        else
+            PasswordVisualTransformation(),
+
+        // trailingIcon: ícone no lado direito do campo
+        trailingIcon = {
+            IconButton(onClick = { senhaVisivel = !senhaVisivel }) {
+                Icon(
+                    imageVector = if (senhaVisivel)
+                        Icons.Default.Visibility
+                    else
+                        Icons.Default.VisibilityOff,
+                    contentDescription = "Alternar visibilidade da senha"
+                )
+            }
+        },
+
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Password
+        )
+    )
+}
+```
+
+### Exibindo mensagens de erro no TextField
+
+```kotlin
+@Composable
+fun CampoComValidacao() {
+    var texto by remember { mutableStateOf("") }
+
+    // isError ativa o estado visual de erro do componente (borda/texto ficam vermelhos)
+    val temErro = texto.length > 20
+
+    OutlinedTextField(
+        value = texto,
+        onValueChange = { texto = it },
+        label = { Text("Nome de usuário") },
+        isError = temErro,  // ativa visual de erro quando true
+
+        // supportingText aparece abaixo do campo — use para erro ou dica
+        supportingText = {
+            if (temErro) {
+                Text(
+                    "Máximo 20 caracteres",
+                    color = MaterialTheme.colorScheme.error
+                )
+            } else {
+                Text("${texto.length}/20")
+            }
+        }
+    )
+}
+```
+
+---
+
+## 4.6 Card e Surface
+
+`Card` é um contêiner com elevação, fundo e forma arredondada — usado para agrupar conteúdo relacionado. `Surface` é a versão mais básica: apenas aplica cor de fundo, forma e elevação, sem opiniões sobre layout interno.
+
+```kotlin
+@Composable
+fun ExemploCard() {
+    // Card padrão — elevação e fundo automáticos pelo tema
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        // O conteúdo interno é livre — Card é apenas o contêiner
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Título do Card", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Descrição do conteúdo.", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+```
+
+### Variantes de Card
+
+```kotlin
+// Card clicável — superfície interativa
+Card(onClick = { /* navegar para detalhe */ }) {
+    Text("Card clicável", modifier = Modifier.padding(16.dp))
+}
+
+// ElevatedCard — sombra mais pronunciada
+ElevatedCard {
+    Text("Card elevado", modifier = Modifier.padding(16.dp))
+}
+
+// OutlinedCard — apenas borda, sem elevação
+OutlinedCard {
+    Text("Card com borda", modifier = Modifier.padding(16.dp))
+}
+```
+
+---
+
+## 4.7 TopAppBar
+
+`TopAppBar` é a barra superior da tela. Ela contém título, ícone de navegação (voltar/menu) e ações.
+
+```kotlin
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MinhaTopBar(onVoltarClick: () -> Unit) {
+    TopAppBar(
+        // Título da tela
+        title = { Text("Detalhes") },
+
+        // Ícone de navegação — geralmente "voltar" ou "abrir menu"
+        navigationIcon = {
+            IconButton(onClick = onVoltarClick) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Voltar"
+                )
+            }
+        },
+
+        // Ações no lado direito da barra
+        actions = {
+            IconButton(onClick = { /* buscar */ }) {
+                Icon(Icons.Default.Search, contentDescription = "Buscar")
+            }
+            IconButton(onClick = { /* mais opções */ }) {
+                Icon(Icons.Default.MoreVert, contentDescription = "Mais opções")
+            }
+        },
+
+        // Cores da barra — usa o tema por padrão
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    )
+}
+```
+
+> **Nota:** `TopAppBar` requer a anotação `@OptIn(ExperimentalMaterial3Api::class)` por enquanto. Isso não significa que o componente seja instável — apenas que sua API pode receber pequenos ajustes em versões futuras.
+
+---
+
+## 4.8 NavigationBar
+
+`NavigationBar` é a barra de navegação inferior com ícones para as seções principais do app. Deve conter entre **3 e 5 destinos**.
+
+```kotlin
+@Composable
+fun BarraNavegacao() {
+    var itemSelecionado by remember { mutableStateOf(0) }
+
+    // Lista de destinos de navegação
+    val itens = listOf("Início", "Busca", "Perfil")
+    val icones = listOf(Icons.Default.Home, Icons.Default.Search, Icons.Default.Person)
+
+    NavigationBar {
+        // Para cada destino, cria um NavigationBarItem
+        itens.forEachIndexed { index, titulo ->
+            NavigationBarItem(
+                // selected define qual item está ativo visualmente
+                selected = itemSelecionado == index,
+                onClick = { itemSelecionado = index },
+                icon = {
+                    Icon(
+                        imageVector = icones[index],
+                        contentDescription = titulo
+                    )
+                },
+                label = { Text(titulo) }
+            )
+        }
+    }
+}
+```
+
+---
+
+## 4.9 AlertDialog
+
+`AlertDialog` exibe uma janela modal para confirmação ou informação. O usuário precisa interagir com ela antes de continuar.
+
+```kotlin
+@Composable
+fun DialogExclusao(
+    onConfirmar: () -> Unit,
+    onCancelar: () -> Unit
+) {
+    AlertDialog(
+        // onDismissRequest é chamado quando o usuário clica fora do dialog
+        // ou pressiona o botão voltar — normalmente chama onCancelar
+        onDismissRequest = onCancelar,
+
+        // Ícone opcional no topo do dialog
+        icon = {
+            Icon(Icons.Default.Delete, contentDescription = null)
+        },
+
+        title = { Text("Excluir item?") },
+
+        text = {
+            Text("Esta ação não pode ser desfeita. O item será removido permanentemente.")
+        },
+
+        // Botão de ação principal (direita)
+        confirmButton = {
+            TextButton(onClick = onConfirmar) {
+                Text("Excluir", color = MaterialTheme.colorScheme.error)
+            }
+        },
+
+        // Botão de ação secundária (esquerda)
+        dismissButton = {
+            TextButton(onClick = onCancelar) {
+                Text("Cancelar")
+        }
+        }
+    )
+}
+```
+
+### Controlando a visibilidade do Dialog com estado
+
+O `AlertDialog` não tem visibilidade própria — você controla se ele aparece ou não com um booleano de estado:
+
+```kotlin
+@Composable
+fun TelaComDialog() {
+    var mostrarDialog by remember { mutableStateOf(false) }
+
+    Button(onClick = { mostrarDialog = true }) {
+        Text("Excluir")
+    }
+
+    // O Dialog só é renderizado quando mostrarDialog == true
+    if (mostrarDialog) {
+        DialogExclusao(
+            onConfirmar = {
+                // executa a exclusão
+                mostrarDialog = false  // fecha o dialog
+            },
+            onCancelar = {
+                mostrarDialog = false  // fecha o dialog sem fazer nada
+            }
+        )
+    }
+}
+```
+
+---
+
+## 4.10 Configurando o tema do app
+
+O Android Studio gera automaticamente os arquivos de tema ao criar um projeto Compose. Entender a estrutura é importante para customizar as cores do app.
+
+### Estrutura padrão dos arquivos de tema
+
+```
+ui/
+└── theme/
+    ├── Color.kt     → define todas as cores brutas
+    ├── Theme.kt     → monta o ColorScheme e expõe o composable de tema
+    └── Type.kt      → define os estilos de tipografia
+```
+
+### Color.kt — cores brutas
+
+```kotlin
+// Color.kt
+// Aqui ficam as cores em hexadecimal.
+// Elas não têm semântica — apenas valores de cor.
+val Verde80   = Color(0xFFB5CCAD)
+val Verde40   = Color(0xFF3D6B34)
+val Neutro90  = Color(0xFFE8E0EC)
+val Neutro10  = Color(0xFF1C1B1F)
+```
+
+### Theme.kt — montagem do tema
+
+```kotlin
+// Theme.kt
+// Aqui as cores brutas são atribuídas a papéis semânticos.
+// "primary" é a cor principal do app; "background" é o fundo, etc.
+
+private val EsquemaClaroDeColores = lightColorScheme(
+    primary          = Verde40,       // cor principal — botões, FAB, seleção
+    onPrimary        = Color.White,   // cor do conteúdo SOBRE o primary
+    primaryContainer = Verde80,       // versão suave do primary — cards, chips
+    background       = Neutro90,      // cor de fundo das telas
+    onBackground     = Neutro10,      // cor do texto sobre o background
+    // ... outros papéis
+)
+
+private val EsquemaEscuroDeColores = darkColorScheme(
+    primary          = Verde80,
+    onPrimary        = Verde40,
+    // ... valores invertidos para dark theme
+)
+
+@Composable
+fun MeuAppTheme(
+    // isSystemInDarkTheme() retorna true se o sistema está em modo escuro
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit
+) {
+    val esquema = if (darkTheme) EsquemaEscuroDeColores else EsquemaClaroDeColores
+
+    MaterialTheme(
+        colorScheme = esquema,
+        content = content
+    )
+}
+```
+
+### Os papéis de cor do M3
+
+O M3 trabalha com pares de cores: uma cor de **contêiner** e uma cor **"on"** (que representa o conteúdo sobre aquele contêiner):
+
+| Papel | Uso |
+|---|---|
+| `primary` / `onPrimary` | Componentes de destaque principal (botões, FAB) |
+| `primaryContainer` / `onPrimaryContainer` | Contêineres de destaque suave (chips selecionados, badges) |
+| `secondary` / `onSecondary` | Componentes de destaque secundário |
+| `background` / `onBackground` | Fundo das telas e texto sobre ele |
+| `surface` / `onSurface` | Superfícies de componentes (cards, sheets, menus) |
+| `error` / `onError` | Estados de erro |
+
+> **Regra:** sempre que uma cor for usada como fundo de algo, o conteúdo (texto, ícone) que vai sobre ela deve usar a cor `on` correspondente. Isso garante contraste acessível automaticamente.
+
+---
+
+## 4.11 Resumo da Parte 4
+
+| Componente | Função |
+|---|---|
+| `MaterialTheme` | Fornece o tema (cores, tipografia, formas) para toda a árvore abaixo |
+| `Scaffold` | Esqueleto estrutural da tela — reserva espaço para TopAppBar, FAB, NavigationBar |
+| `Button` / variantes | Ações do usuário em 5 níveis de ênfase visual |
+| `TextField` / `OutlinedTextField` | Entrada de texto com suporte a label, erro, ícones e transformações |
+| `Card` | Contêiner com elevação e forma para agrupar conteúdo relacionado |
+| `TopAppBar` | Barra superior com título, navegação e ações |
+| `NavigationBar` | Barra inferior de navegação entre seções principais (3–5 destinos) |
+| `AlertDialog` | Janela modal para confirmação ou informação |
+| `ColorScheme` | Paleta semântica de cores — pares `cor` / `onCor` |
+
+---
+
+## Próxima Parte
+
+**Parte 5 — Listas e Navegação**
+
+Cobre os conceitos de:
+- `LazyColumn` e `LazyRow` — listas eficientes para grandes volumes de dados
+- Por que `Column` com loop não serve para listas longas
+- `items`, `itemsIndexed` e `item` no contexto de lazy lists
+- `NavController` e `NavHost` — navegação entre telas
+- Passagem de argumentos entre telas
+- Estrutura de rotas
+
+---
+*Aguardando aprovação para prosseguir para a Parte 5.*
 
