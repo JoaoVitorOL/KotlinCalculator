@@ -2044,7 +2044,7 @@ fun CarrosselCategorias(categorias: List<Categoria>) {
 
 ---
 
-## 5.5 Navegação — conceitos fundamentais
+## 5.5 Navigation — conceitos fundamentais
 
 O sistema de navegação do Compose é composto por três peças:
 
