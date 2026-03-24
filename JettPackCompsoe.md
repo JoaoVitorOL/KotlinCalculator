@@ -1682,6 +1682,8 @@ fun MinhaTopBar(onVoltarClick: () -> Unit) {
 
 ## 4.8 NavigationBar
 
+[Navigation video](https://youtu.be/wJKwsI5WUI4?si=DEP-fYTY_jbS0fbU)
+
 `NavigationBar` é a barra de navegação inferior com ícones para as seções principais do app. Deve conter entre **3 e 5 destinos**.
 
 ```kotlin
