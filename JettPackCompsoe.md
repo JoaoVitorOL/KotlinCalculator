@@ -3261,3 +3261,471 @@ LazyColumn exibe a lista com a nova tarefa
 ---
 
 
+
+
+## 8.1 Requisições HTTP com Retrofit
+
+### O que é e por que ele existe
+
+Aplicativos modernos raramente são ilhas isoladas. Eles precisam conversar com o mundo externo — buscar dados de uma API, enviar formulários, autenticar usuários. Para isso, é necessário fazer requisições HTTP: o protocolo de comunicação da web.
+
+O Android fornece ferramentas de baixo nível para fazer requisições HTTP (como `HttpURLConnection`), mas usá-las diretamente exige escrever muito código repetitivo: montar a URL, abrir a conexão, ler o fluxo de bytes, tratar erros, deserializar o JSON. Além disso, tudo isso precisaria ser feito em uma thread separada, pois operações de rede **nunca podem bloquear a thread principal** (a thread que desenha a UI).
+
+O Retrofit, criado pela Square, resolve esse problema ao **transformar uma interface Kotlin em um cliente HTTP completo**. Você declara as chamadas que quer fazer e o Retrofit cuida de toda a mecânica por baixo.
+
+Em vez de escrever código para abrir uma conexão, você escreve uma interface:
+
+```
+interface JokeApi {
+    fun getJoke(): Joke
+}
+```
+
+E o Retrofit gera o cliente que faz a requisição, lida com o JSON e retorna o objeto Kotlin.
+
+### Por que não usar HttpURLConnection diretamente?
+
+| Critério | `HttpURLConnection` | Retrofit |
+|---|---|---|
+| Quantidade de código | Alta — cada requisição é decenas de linhas | Baixa — a interface já é a definição completa |
+| Deserialização de JSON | Manual — você faz o parse do JSON byte a byte | Automática via conversor (Gson, Moshi, kotlinx.serialization) |
+| Gerenciamento de threads | Manual — você cria e gerencia as threads | Integrado com coroutines via `suspend fun` |
+| Tratamento de erros HTTP | Manual — você verifica o código de status | Integrado — Retrofit lança exceções para erros |
+| Legibilidade | Difícil de entender sem contexto | A interface documenta a API por si só |
+
+### Como o Retrofit funciona internamente
+
+O Retrofit usa **reflection e geração de código em tempo de execução** para implementar a interface que você declara. Quando você anota um método com `@GET("/joke")`, o Retrofit sabe que aquela chamada deve:
+
+1. Montar a URL completa usando a URL base configurada mais o caminho `/joke`
+2. Abrir uma conexão HTTP com o método GET
+3. Aguardar a resposta do servidor
+4. Passar o corpo da resposta (JSON) para o conversor configurado
+5. Retornar o objeto Kotlin deserializado
+
+Cada anotação (`@GET`, `@POST`, `@PUT`, `@DELETE`, `@PATCH`) corresponde a um verbo HTTP. Os parâmetros das anotações definem o caminho relativo da requisição.
+
+### Conversor de JSON
+
+O Retrofit não deserializa JSON por conta própria — ele delega essa tarefa para um **conversor**. O mais comum é o `Gson`, mas existem alternativas como `Moshi` (mais leve) e `kotlinx.serialization` (nativo do Kotlin e sem reflection).
+
+O conversor recebe o JSON como string e transforma nos objetos Kotlin que você declarou. Para isso, a estrutura da classe Kotlin precisa corresponder à estrutura do JSON retornado pela API.
+
+### Integração com Corrotinas
+
+O Retrofit suporta `suspend fun` nativamente desde a versão 2.6. Isso significa que você pode chamar requisições HTTP como se fossem funções normais — sem callbacks, sem `AsyncTask`, sem gerenciamento manual de threads.
+
+Quando você declara um método como `suspend fun`, o Retrofit sabe que deve executar a requisição em uma corrotina e suspender a execução até receber a resposta, sem bloquear a thread principal.
+
+### Retrofit no contexto da arquitetura
+
+O Retrofit pertence à **camada de dados** do app. Ele não deve ser usado diretamente nos composables nem nos ViewModels — ele deve ser encapsulado em um `Repository`, que é quem decide de onde buscar os dados (da rede, do banco local, do cache).
+
+```
+Composable → ViewModel → Repository → Retrofit (API remota)
+                       ↘ Room (banco local)
+```
+
+### Comparativo com outras bibliotecas
+
+| Biblioteca | Origem | Característica principal |
+|---|---|---|
+| `Retrofit` | Square | Baseada em interfaces; ecossistema maduro; mais usada em Android |
+| `Ktor Client` | JetBrains | Nativa do Kotlin Multiplatform; mais moderna e sem reflection |
+| `OkHttp` | Square | Camada de transporte HTTP de baixo nível; o Retrofit usa OkHttp internamente |
+| `Volley` | Google | Mais antiga; ainda usada, mas não é o padrão moderno |
+
+O Retrofit usa o OkHttp como cliente HTTP subjacente. Isso significa que todas as funcionalidades do OkHttp — interceptadores, cache, gerenciamento de conexões — estão disponíveis para o Retrofit também.
+
+---
+
+## 8.2 Download de Imagens com Coil
+
+### O problema de exibir imagens da internet
+
+Exibir uma imagem de uma URL parece simples, mas esconde uma série de problemas complexos:
+
+- A imagem precisa ser baixada em uma thread separada (operação de rede bloqueante)
+- O download pode demorar — o que mostrar enquanto isso?
+- A imagem pode ser grande demais para a memória do dispositivo
+- Se o usuário rolar uma lista, as imagens precisam ser canceladas/recarregadas corretamente
+- A mesma imagem pode aparecer em múltiplos lugares — vale a pena baixar mais de uma vez?
+
+Gerenciar tudo isso manualmente é inviável. É aí que entram as bibliotecas de carregamento de imagens.
+
+### O que é Coil
+
+Coil (Coroutine Image Loader) é uma biblioteca de carregamento de imagens desenvolvida especificamente para o Kotlin e o Android moderno. O nome é um acrônimo de **Co**routine **I**mage **L**oader, o que já indica sua característica central: ela é construída em cima de corrotinas desde o início, ao contrário de bibliotecas mais antigas que foram adaptadas.
+
+### O que o Coil faz automaticamente
+
+| Problema | Como o Coil resolve |
+|---|---|
+| Download em background | Usa corrotinas — nunca bloqueia a thread principal |
+| Placeholder enquanto carrega | Parâmetro `placeholder` — exibe um drawable enquanto a imagem não chegou |
+| Imagem de erro | Parâmetro `error` — exibe um drawable se o download falhar |
+| Cache em memória | Armazena as imagens já baixadas em RAM — evita re-download imediato |
+| Cache em disco | Persiste as imagens no armazenamento interno — evita re-download entre sessões |
+| Decodificação e resize | Redimensiona a imagem para o tamanho do componente — evita consumo excessivo de memória |
+| Cancelamento automático | Se o composable sair da tela (ex: em uma `LazyColumn`), o download é cancelado |
+
+### AsyncImage — o composable principal do Coil
+
+O Coil fornece um composable chamado `AsyncImage` que substitui o `Image` padrão do Compose quando a fonte é uma URL. Ao contrário do `Image`, que recebe um recurso local (`painterResource`), o `AsyncImage` aceita qualquer URL como string.
+
+O `AsyncImage` gerencia todo o ciclo de vida do download: inicia quando o composable entra na tela, cancela se ele sair antes do download terminar e exibe o placeholder/erro nos estados correspondentes.
+
+### Coil vs outras bibliotecas de imagem
+
+| Biblioteca | Linguagem / Paradigma | Integração com Compose |
+|---|---|---|
+| **Coil** | Kotlin nativo / Coroutines | Nativa — criada para Compose |
+| **Glide** | Java / Callbacks | Via wrapper `accompanist-glide` |
+| **Picasso** | Java / Callbacks | Via wrapper ou uso manual |
+| **Fresco** (Meta) | Java | Integração limitada com Compose |
+
+Para projetos Compose em Kotlin, o Coil é a escolha mais natural porque compartilha os mesmos princípios: é coroutine-first, tem API fluente em Kotlin e seu ciclo de vida está integrado ao ciclo de vida dos composables.
+
+### Performance em listas
+
+Um dos maiores benefícios do Coil em listas (`LazyColumn`, `LazyRow`) é o **cancelamento automático de requisições**. Quando o usuário rola rapidamente uma lista com muitos itens, cada `AsyncImage` que sai da tela cancela automaticamente seu download em andamento. Isso evita um fenômeno comum em bibliotecas mais antigas chamado de "image flickering" — quando imagens aparecem na célula errada porque o download terminou depois que a célula já estava sendo reutilizada para outro item.
+
+O cache do Coil também é fundamental aqui: se o usuário rolar de volta para uma posição que já foi carregada, a imagem aparece instantaneamente do cache, sem novo download.
+
+---
+
+## 8.3 Permissões em Tempo de Execução
+
+### O modelo de segurança do Android
+
+O Android é um sistema operacional compartilhado — múltiplos apps rodam juntos, e cada um tem acesso ao hardware, aos dados e aos sensores do dispositivo. Para proteger a privacidade e a segurança do usuário, o Android adota um modelo de **permissões explícitas**: nenhum app pode acessar câmera, localização, microfone, contatos ou armazenamento sem que o usuário autorize.
+
+Esse modelo evoluiu ao longo das versões do Android. Compreender essa evolução é essencial para implementar permissões corretamente.
+
+### Permissões normais vs permissões perigosas
+
+| Categoria | Exemplos | Comportamento |
+|---|---|---|
+| **Normais** | Internet, Bluetooth básico, Vibração | Concedidas automaticamente na instalação — o usuário não precisa aprovar |
+| **Perigosas** | Localização, Câmera, Microfone, Contatos | Devem ser solicitadas **em tempo de execução** — o usuário decide |
+| **Especiais** | Instalar apps desconhecidos, Acessibilidade | Exigem que o usuário navegue manualmente para as configurações do sistema |
+
+### A evolução: permissões em tempo de instalação vs em tempo de execução
+
+Antes do Android 6.0 (Marshmallow, API 23), as permissões eram concedidas **em bloco durante a instalação**. O usuário via uma lista de tudo que o app precisaria acessar e podia apenas aceitar tudo ou não instalar.
+
+A partir do Android 6.0, o modelo mudou: **permissões perigosas são solicitadas em tempo de execução**, no momento em que o app realmente precisa delas. O usuário pode conceder ou negar individualmente, e pode revogar qualquer permissão depois nas configurações do sistema.
+
+Isso trouxe benefícios claros para a privacidade, mas também uma responsabilidade maior para os desenvolvedores: é preciso tratar todos os cenários possíveis.
+
+### Os três estados possíveis de uma permissão
+
+Quando seu app solicita uma permissão, existem três respostas possíveis do usuário:
+
+| Estado | O que acontece | O que o app deve fazer |
+|---|---|---|
+| **Concedida** | Usuário aprovou | Prosseguir com a funcionalidade |
+| **Negada** | Usuário recusou | Explicar por que a permissão é necessária e oferecer alternativa ou degradar graciosamente |
+| **Negada permanentemente** | Usuário recusou e marcou "Não perguntar novamente" | Redirecionar para as Configurações do sistema — não é mais possível solicitar pelo app |
+
+### O fluxo correto de solicitação de permissão
+
+O Google estabelece um fluxo recomendado que evita as práticas ruins que frustravam os usuários:
+
+```
+1. Usuário tenta usar uma funcionalidade que precisa de permissão
+        │
+        ▼
+2. Verificar se a permissão já foi concedida
+        │
+    ┌───┴─────────────────┐
+    │                     │
+   Sim                   Não
+    │                     │
+    ▼                     ▼
+3. Usar a         Verificar se deve mostrar
+   funcionalidade   justificativa (rationale)
+                         │
+                 ┌───────┴───────────┐
+                 │                   │
+                Sim                 Não
+                 │                   │
+                 ▼                   ▼
+         Mostrar UI             Solicitar permissão
+         explicando             diretamente
+         o motivo
+                 │
+                 ▼
+         Solicitar permissão
+```
+
+A etapa de **rationale** (justificativa) é importante: se o usuário já negou a permissão uma vez antes, o sistema indica que você deve explicar por que o app precisa daquela permissão antes de pedir novamente. Apps que solicitam permissões sem contexto ou logo na abertura têm taxas de negação muito maiores.
+
+### O que acontece sem a permissão
+
+Se o app tentar acessar um recurso protegido sem ter a permissão correspondente, o sistema lança uma `SecurityException` — uma exceção não verificada que, se não tratada, encerra o app abruptamente. Em versões mais recentes do Android, certos recursos simplesmente retornam dados vazios ou falsos (como a localização) ao invés de lançar exceção, como medida adicional de privacidade.
+
+### Permissões de localização — um caso especial
+
+A localização tem dois níveis de granularidade:
+
+| Permissão | Precisão | Uso de bateria |
+|---|---|---|
+| `ACCESS_COARSE_LOCATION` | Aproximada (~3 km) | Baixo |
+| `ACCESS_FINE_LOCATION` | Precisa (GPS, metros) | Alto |
+
+Para acessar a localização em segundo plano (quando o app não está na frente), é necessária a permissão adicional `ACCESS_BACKGROUND_LOCATION`, que foi tornada mais restritiva no Android 10 e exige justificativa especial junto ao Google Play.
+
+---
+
+## 8.4 Intents
+
+### O que é um Intent
+
+"Intent" significa intenção. No Android, um `Intent` é um objeto que expressa a **intenção de realizar uma ação** — e essa ação pode ser executada pelo próprio app ou por qualquer outro app instalado no dispositivo.
+
+É o mecanismo central de comunicação entre componentes no Android. Quando você quer abrir outra tela, tirar uma foto, enviar um e-mail, abrir um link no navegador ou mostrar um local no mapa, você usa um Intent.
+
+### Intents Explícitos vs Implícitos
+
+Existem dois tipos fundamentais de Intent:
+
+| Tipo | Como funciona | Quando usar |
+|---|---|---|
+| **Explícito** | Você especifica exatamente qual componente (Activity, Service) deve ser iniciado | Navegação interna — de uma tela para outra dentro do seu próprio app |
+| **Implícito** | Você descreve **o que quer fazer** — o sistema encontra quem sabe fazer | Abrir o mapa, tirar foto, compartilhar conteúdo, enviar e-mail |
+
+### Como o sistema resolve Intents implícitos
+
+Quando você dispara um Intent implícito, o Android faz o papel de intermediário:
+
+```
+Seu app cria um Intent com:
+    - Ação: ACTION_VIEW
+    - Dados: geo:0,0?q=Paris
+
+Android consulta todos os apps instalados:
+    "Quem sabe lidar com ACTION_VIEW + geo:?"
+
+    ├── Google Maps → sabe ✓
+    ├── Waze → sabe ✓
+    └── Calculadora → não sabe ✗
+
+Se apenas um app sabe → abre diretamente
+Se mais de um sabe → mostra seletor ao usuário ("Abrir com...")
+Se nenhum sabe → Intent não é resolvido (app pode travar se não tratado)
+```
+
+Esse mecanismo é o que permite que apps Android colaborem sem precisar se conhecer diretamente. Seu app não precisa saber que o Google Maps existe — ele apenas expressa "quero ver um local no mapa" e o sistema encontra quem pode fazer isso.
+
+### Ações comuns de Intents implícitos
+
+| O que fazer | Ação | Dado |
+|---|---|---|
+| Abrir URL no navegador | `ACTION_VIEW` | URL completa (`https://...`) |
+| Mostrar local no mapa | `ACTION_VIEW` | `geo:lat,lng` ou `geo:0,0?q=nome+do+local` |
+| Fazer uma ligação | `ACTION_DIAL` | `tel:+5548...` |
+| Enviar e-mail | `ACTION_SEND` | MIME type: `message/rfc822` |
+| Compartilhar texto | `ACTION_SEND` | MIME type: `text/plain` |
+| Tirar uma foto | `ACTION_IMAGE_CAPTURE` | — |
+| Escolher um arquivo | `ACTION_GET_CONTENT` | MIME type do arquivo |
+
+### Intent Filters — como apps declaram o que sabem fazer
+
+Para que o Android saiba que um app pode lidar com determinado Intent, o app precisa declarar um **Intent Filter** no seu `AndroidManifest.xml`. O Intent Filter especifica quais ações e tipos de dados o app é capaz de processar.
+
+É o Intent Filter que faz um app de galeria aparecer quando você escolhe uma imagem, ou que faz o seu app aparecer na lista de opções quando outro app quer compartilhar texto.
+
+### Verificar antes de disparar
+
+Antes de disparar um Intent implícito, é boa prática verificar se existe pelo menos um app capaz de recebê-lo. Se nenhum app souber lidar com o Intent e você não tratar esse caso, o app vai lançar uma `ActivityNotFoundException` e encerrar abruptamente.
+
+A partir do Android 11, é necessário declarar explicitamente no `AndroidManifest.xml` quais apps ou tipos de Intent seu app pretende consultar, por razões de privacidade.
+
+### Intents e dados sensíveis
+
+Intents podem carregar dados extras (`extras`) — pares chave-valor que transmitem informações entre componentes. É importante saber que Intents implícitos podem ser interceptados por outros apps (quando há ambiguidade na resolução). Por esse motivo, **nunca coloque dados sensíveis** (senhas, tokens, dados pessoais) em Intents implícitos. Para comunicação interna segura entre componentes do próprio app, use sempre Intents explícitos.
+
+---
+
+## 8.5 Corrotinas do Kotlin
+
+### O problema da programação assíncrona
+
+Apps modernos fazem muitas coisas que demoram: baixar dados da internet, ler do banco de dados, processar imagens. O Android não permite que essas operações aconteçam na **thread principal** — a thread responsável por desenhar e atualizar a UI. Se você bloquear a thread principal por mais de 5 segundos, o sistema exibe o famoso diálogo "O aplicativo não está respondendo" (ANR) e pode encerrar o app.
+
+A solução tradicional era usar **threads** manualmente ou **callbacks** (funções que serão chamadas quando a operação terminar). Ambas as abordagens funcionam, mas têm problemas sérios.
+
+### O problema com threads e callbacks
+
+```
+Abordagem com callbacks — o "callback hell":
+
+buscarUsuario(id) { usuario ->
+    buscarPedidos(usuario.id) { pedidos ->
+        buscarDetalhesPedido(pedidos.first().id) { detalhe ->
+            // código que realmente precisa do resultado
+            // enterrado em 3 níveis de indentação
+            // impossível de ler, debugar ou tratar erros
+        }
+    }
+}
+```
+
+Quanto mais operações assíncronas encadeadas, mais o código se torna ilegível — um fenômeno chamado de "callback hell" ou "pyramid of doom". Além disso, tratar erros nesse modelo exige verificar o erro em cada nível de callback.
+
+### O que são Corrotinas
+
+Corrotinas são um mecanismo da linguagem Kotlin que permite escrever código assíncrono de forma **sequencial e legível**, como se fosse código síncrono comum, sem bloquear threads.
+
+A palavra "corrotina" vem de "co-rotina" — uma rotina que pode ser **suspensa e retomada** em outro momento. Diferentemente de uma thread, uma corrotina suspensa não bloqueia a thread em que está rodando. A thread fica livre para fazer outras coisas enquanto a corrotina espera.
+
+```
+Código com corrotinas — sequencial e legível:
+
+val usuario = buscarUsuario(id)           // suspende até receber
+val pedidos = buscarPedidos(usuario.id)   // suspende até receber
+val detalhe = buscarDetalhesPedido(pedidos.first().id)
+// código linear, fácil de ler e debugar
+```
+
+O resultado é idêntico ao callback hell — operações assíncronas encadeadas — mas o código parece completamente síncrono.
+
+### Suspend functions — o coração das corrotinas
+
+Uma função marcada com `suspend` é uma função que pode ser **pausada sem bloquear a thread**. Ela só pode ser chamada de dentro de outra `suspend function` ou de dentro de uma corrotina.
+
+A palavra-chave `suspend` não cria uma thread nova nem faz nada de especial sozinha — ela apenas sinaliza ao compilador que essa função pode suspender a execução e que o código que a chama precisa estar preparado para isso.
+
+```
+Analogia: um restaurante com garçom cooperativo
+
+Thread comum → garçom que fica parado na cozinha esperando o pedido ficar pronto
+                Nenhum outro cliente pode ser atendido enquanto ele espera
+
+Corrotina → garçom que anota o pedido, vai para outra mesa, e volta quando o prato fica pronto
+            Atende vários clientes "ao mesmo tempo" sem ficar parado
+```
+
+### Dispatchers — quem executa a corrotina
+
+Corrotinas não rodam "no ar" — elas precisam de uma thread para executar. Os **Dispatchers** controlam em qual thread (ou pool de threads) a corrotina vai rodar:
+
+| Dispatcher | Onde executa | Quando usar |
+|---|---|---|
+| `Dispatchers.Main` | Thread principal (UI) | Atualizar a UI, operações rápidas |
+| `Dispatchers.IO` | Pool de threads para I/O | Operações de rede, banco de dados, arquivos |
+| `Dispatchers.Default` | Pool de threads para CPU | Processamento intensivo, algoritmos pesados |
+| `Dispatchers.Unconfined` | Sem thread definida | Casos especiais — raramente usado |
+
+No Android, a regra geral é: operações de rede e banco de dados usam `Dispatchers.IO`; atualizações da UI usam `Dispatchers.Main`. O Retrofit e o Room já cuidam de trocar o Dispatcher internamente quando você usa `suspend fun`, então você raramente precisa fazer isso manualmente.
+
+### Scopes — o ciclo de vida de uma corrotina
+
+Corrotinas precisam de um **escopo** (`CoroutineScope`) para existir. O escopo define o ciclo de vida da corrotina — quando o escopo é cancelado, todas as corrotinas filhas são canceladas automaticamente.
+
+No Android, os escopos mais importantes são:
+
+| Escopo | Ciclo de vida | Uso |
+|---|---|---|
+| `viewModelScope` | Cancelado quando o ViewModel é destruído | Operações iniciadas pelo ViewModel |
+| `lifecycleScope` | Cancelado quando a Activity/Fragment é destruída | Operações ligadas ao ciclo de vida da tela |
+| `rememberCoroutineScope()` | Cancelado quando o composable sai da tela | Operações iniciadas dentro de um composable |
+
+O `viewModelScope` é o mais usado no padrão MVVM descrito na Parte 6. Quando o usuário navega para fora da tela e o ViewModel é destruído, todas as corrotinas pendentes são canceladas — sem vazamentos de memória.
+
+### Structured Concurrency — corrotinas com hierarquia
+
+Um conceito fundamental das corrotinas do Kotlin é a **structured concurrency** (concorrência estruturada). Toda corrotina tem um pai e pertence a um escopo. Se o pai for cancelado, todos os filhos são cancelados junto. Se um filho lançar uma exceção não tratada, ela se propaga para o pai.
+
+Isso é radicalmente diferente das threads tradicionais, onde você pode criar uma thread e "perder o controle" dela — ela continua rodando mesmo que o componente que a criou tenha sido destruído.
+
+### Corrotinas vs outras abordagens
+
+| Abordagem | Legibilidade | Tratamento de erros | Cancelamento | Integração com Kotlin |
+|---|---|---|---|---|
+| `Thread` manual | Ruim | Manual e verboso | Manual | Baixa |
+| `AsyncTask` (obsoleto) | Média | Limitado | Limitado | Baixa |
+| Callbacks | Ruim (callback hell) | Por nível | Difícil | Baixa |
+| RxJava | Boa (mas curva alta) | Integrado | Integrado | Média |
+| **Corrotinas Kotlin** | Excelente | `try/catch` normal | Automático | Nativa |
+
+O RxJava foi durante anos a alternativa mais popular para programação reativa no Android. As corrotinas do Kotlin não substituem completamente o RxJava em todos os cenários, mas para a maioria dos casos de uso no desenvolvimento Android moderno — especialmente com Compose — as corrotinas são mais simples, mais legíveis e mais integradas ao ecossistema.
+
+### Flow — corrotinas para dados reativos
+
+`Flow` é a extensão das corrotinas para cenários reativos — quando você não quer um único resultado, mas um **fluxo contínuo de valores** ao longo do tempo.
+
+| Tipo | Retorno | Analogia |
+|---|---|---|
+| `suspend fun` | Um único valor | Tirar uma foto — retorna uma imagem |
+| `Flow<T>` | Múltiplos valores ao longo do tempo | Assistir a um vídeo — frames chegam continuamente |
+
+O Room usa `Flow` para que qualquer mudança no banco de dados seja automaticamente emitida para quem estiver observando — sem precisar recarregar manualmente. O DataStore também usa `Flow` da mesma forma. O `StateFlow`, visto na Parte 6, é uma especialização do `Flow` otimizada para representar estado na UI.
+
+---
+
+## 8.6 Como os cinco temas se conectam
+
+Estes cinco temas não existem isoladamente — eles se complementam na arquitetura de um app real:
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                        COMPOSABLE (UI)                         │
+│  AsyncImage (Coil) exibe imagens                               │
+│  Intent abre o Maps ou o navegador                             │
+│  Solicita permissão de localização antes de buscar dados       │
+└──────────────────────────────┬─────────────────────────────────┘
+                               │ chama funções do ViewModel
+                               ▼
+┌────────────────────────────────────────────────────────────────┐
+│                          VIEWMODEL                             │
+│  viewModelScope lança Corrotinas                               │
+│  Coleta StateFlow com os dados da API                          │
+└──────────────────────────────┬─────────────────────────────────┘
+                               │ chama o repositório
+                               ▼
+┌────────────────────────────────────────────────────────────────┐
+│                         REPOSITORY                             │
+│  Decide entre dados locais (Room) e remotos (Retrofit)         │
+└──────────┬───────────────────────────────────────┬────────────┘
+           │                                       │
+           ▼                                       ▼
+┌─────────────────────┐               ┌────────────────────────┐
+│     RETROFIT        │               │         ROOM           │
+│  Faz requisição     │               │  Retorna Flow          │
+│  HTTP com suspend   │               │  do banco local        │
+│  (Corrotina)        │               │                        │
+└─────────────────────┘               └────────────────────────┘
+```
+
+- **Corrotinas** são a cola que une tudo: Retrofit usa `suspend fun`, Room retorna `Flow`, o ViewModel usa `viewModelScope`, e o composable coleta com `collectAsStateWithLifecycle`.
+- **Retrofit** busca os dados de uma API remota — retorna objetos Kotlin a partir de JSON.
+- **Coil** exibe imagens de URLs que vieram dessa API — gerencia cache, loading e erros automaticamente.
+- **Permissões** protegem o acesso a recursos sensíveis antes de qualquer operação que dependa deles.
+- **Intents** permitem que o app colabore com o ecossistema Android — abrindo outros apps para complementar funcionalidades.
+
+---
+
+## 8.7 Resumo da Parte 8
+
+| Conceito | Definição resumida |
+|---|---|
+| **Retrofit** | Biblioteca que transforma interfaces Kotlin em clientes HTTP completos, com suporte nativo a corrotinas e deserialização automática de JSON |
+| **OkHttp** | Cliente HTTP de baixo nível usado internamente pelo Retrofit — responsável pela conexão real |
+| **Conversor** | Componente do Retrofit (Gson, Moshi, etc.) que transforma JSON em objetos Kotlin |
+| **Coil** | Biblioteca de carregamento de imagens construída para Kotlin e Compose — gerencia download, cache, placeholder e cancelamento |
+| **AsyncImage** | Composable do Coil que carrega e exibe imagens de URLs com ciclo de vida integrado ao Compose |
+| **Permissão normal** | Concedida automaticamente na instalação — não exige aprovação do usuário |
+| **Permissão perigosa** | Deve ser solicitada em tempo de execução — o usuário decide conceder ou negar |
+| **Rationale** | Justificativa exibida ao usuário antes de solicitar uma permissão novamente após negação |
+| **Intent** | Objeto que expressa a intenção de realizar uma ação — pode ser explícito (componente específico) ou implícito (qualquer app capaz) |
+| **Intent Filter** | Declaração no `AndroidManifest.xml` que informa ao sistema quais Intents um componente sabe receber |
+| **Corrotina** | Unidade de código assíncrono que pode ser suspensa e retomada sem bloquear a thread |
+| **suspend fun** | Função que pode pausar sua execução sem bloquear a thread — só pode ser chamada de corrotinas ou outras suspend functions |
+| **Dispatcher** | Define em qual thread ou pool de threads uma corrotina executa (`Main`, `IO`, `Default`) |
+| **CoroutineScope** | Define o ciclo de vida de um conjunto de corrotinas — ao cancelar o escopo, todas as filhas são canceladas |
+| **viewModelScope** | Escopo vinculado ao ciclo de vida do ViewModel — cancela automaticamente ao destruir o ViewModel |
+| **Flow** | Tipo de retorno para sequências assíncronas de múltiplos valores — a base do modelo reativo com corrotinas |
+| **Structured Concurrency** | Princípio onde corrotinas têm hierarquia pai-filho — cancelamento e erros se propagam na hierarquia |
+
